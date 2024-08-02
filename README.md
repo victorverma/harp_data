@@ -1,2 +1,2 @@
-# sharp_params
-Code for obtaining SHARP parameter data
+# harp_data
+Code for obtaining HARP data
