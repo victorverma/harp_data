@@ -44,7 +44,7 @@ sharp_params <- c(
 
 # Use Only Solar Maximum Data
 
-We flag times that lie within the lifetime of some HARP and are between the first and last such times.
+For times between the first and last times in the data, we flag those that lie within the lifetime of some HARP.
 ```{r}
 time_tbl <- harp_tbl %>%
   distinct(T_REC) %>%
@@ -61,7 +61,9 @@ time_tbl %>%
   kable(
     "html",
     digits = 2,
-    col.names = c("Is in a HARP Lifetime?", "Count", "Proportion"),
+    col.names = c(
+      "Is in a HARP Lifetime?", "Number of Times", "Proportion of Times"
+    ),
     align = "crr",
     format.args = list(big.mark = ",")
   ) %>%
@@ -88,18 +90,21 @@ time_summary_tbl <- time_tbl %>%
   select(!run_id)
 ```
 
-In the plot below, each dot represents one run of times. A run is blue if it consists exclusively of times that lie within the lifetime of some HARP; a run is red if it only contains times that do not have that property. The first coordinate of a dot is the start time of the corresponding run, while the second coordinate is the run's duration in days. Red runs should not be used as there is no HARP data for them and no way to impute it. It seems reasonable to train a model with at least a few months' worth of data; there are only two blue runs that could be divided into training sets with that much data. Both of those runs correspond to solar maxima.
+In the plot below, each dot represents one run of times. A run is blue if it consists exclusively of times that lie within the lifetime of some HARP; a run is orange if it only contains times that do not have that property. The first coordinate of a dot is the start time of the corresponding run, while the second coordinate is the run's duration in days. Orange runs should not be used as there is no HARP data for them and no way to impute it. It seems reasonable to train a model with at least a few months' worth of data; there are only two blue runs that could be divided into training sets with that much data. Both of those runs correspond to solar maxima.
 ```{r}
+#| label: run_length_vs_start_time
+
 time_summary_tbl %>%
   mutate(days_elapsed = as.double(days_elapsed)) %>%
   ggplot(aes(start_time, days_elapsed, color = is_in_harp_lifetime)) +
   geom_point() +
   scale_y_log10() +
-  scale_color_discrete(
+  scale_color_manual(
     labels = c(
       `TRUE` = "Every Time Is in a HARP Lifetime",
       `FALSE` = "No Time Is in a HARP Lifetime"
-    )
+    ),
+    values = c(`TRUE` = "blue", `FALSE` = "orange")
   ) +
   labs(x = "Run Start Time", y = "Run Length (Days)", color = "") +
   theme_bw() +
@@ -128,13 +133,12 @@ time_summary_tbl %>%
 
 In the sequel, we will only consider times from the longest run.
 ```{r}
-harp_tbl <- harp_tbl %>%
-  filter(
-    between(
-      T_REC,
-      as_datetime("2010-05-19 01:12:00"), as_datetime("2016-12-10 00:00:00")
-    )
-  )
+longest_run <- time_summary_tbl %>%
+  filter(is_in_harp_lifetime) %>%
+  slice_max(days_elapsed)
+harp_tbl <- filter(
+  harp_tbl, between(T_REC, longest_run$start_time, longest_run$end_time)
+)
 ```
 
 # Analysis Using Solar Maximum Data
