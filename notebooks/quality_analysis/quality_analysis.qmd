@@ -1,0 +1,371 @@
+---
+title: "HARP Data Quality Analysis"
+author: "Victor Verma"
+date: 2024-08-02
+date-format: iso
+published-title: "Date Created"
+output:
+  html_document:
+    embed-resources: true
+    toc: true
+    toc-location: left
+    number_sections: true
+    theme: united
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(arrow)
+library(cowplot)
+library(gridExtra)
+library(here)
+library(kableExtra)
+library(knitr)
+library(tidyverse)
+library(vctrs)
+
+harp_tbl <- read_parquet("../data/processed/harp_data.parquet")
+```
+
+In this analysis, we investigate quality issues in HARP data for the period `r str_c(format(range(harp_tbl$T_REC), "%F"), collapse = " to ")`. This data was obtained using the code in [this `git` repository](https://github.com/victorverma/harp_data).
+
+The vector below will prove to be useful.
+```{r}
+sharp_params <- c(
+  "USFLUX", "MEANGAM", "MEANGBT", "MEANGBZ", "MEANGBH", "MEANJZD", "TOTUSJZ",
+  "MEANALP", "MEANJZH", "TOTUSJH", "ABSNJZH", "SAVNCPP", "MEANPOT", "TOTPOT",
+  "MEANSHR", "SHRGT45"
+)
+```
+
+# Use Only Solar Maximum Data
+
+We flag times that lie within the lifetime of some HARP and are between the first and last such times.
+```{r}
+time_tbl <- harp_tbl %>%
+  distinct(T_REC) %>%
+  add_column(is_in_harp_lifetime = TRUE) %>%
+  complete(T_REC = full_seq(T_REC, period = 720)) %>%
+  mutate(is_in_harp_lifetime = coalesce(is_in_harp_lifetime, FALSE))
+```
+
+The majority of times are within some HARP lifetime, but a significant minority aren't.
+```{r}
+time_tbl %>%
+  count(is_in_harp_lifetime, sort = TRUE) %>%
+  mutate(prop = n / sum(n)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c("Is in a HARP Lifetime?", "Count", "Proportion"),
+    align = "crr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+The sequence of times can be partitioned into runs such that within each run, either every time is in some HARP lifetime or no time is in some HARP lifetime. For each run, we compute its start and end times and its duration.
+```{r}
+#| message: false
+
+time_rle_obj <- rle(time_tbl$is_in_harp_lifetime)
+time_summary_tbl <- time_tbl %>%
+  add_column(
+    run_id = rep(seq_along(time_rle_obj$values), times = time_rle_obj$lengths)
+  ) %>%
+  group_by(run_id, is_in_harp_lifetime) %>%
+  summarize(
+    start_time = min(T_REC),
+    end_time = max(T_REC),
+    days_elapsed = difftime(max(T_REC), min(T_REC), units = "days"),
+    num_times = length(T_REC)
+  ) %>%
+  ungroup() %>%
+  select(!run_id)
+```
+
+In the plot below, each dot represents one run of times. A run is blue if it consists exclusively of times that lie within the lifetime of some HARP; a run is red if it only contains times that do not have that property. The first coordinate of a dot is the start time of the corresponding run, while the second coordinate is the run's duration in days. Red runs should not be used as there is no HARP data for them and no way to impute it. It seems reasonable to train a model with at least a few months' worth of data; there are only two blue runs that could be divided into training sets with that much data. Both of those runs correspond to solar maxima.
+```{r}
+time_summary_tbl %>%
+  mutate(days_elapsed = as.double(days_elapsed)) %>%
+  ggplot(aes(start_time, days_elapsed, color = is_in_harp_lifetime)) +
+  geom_point() +
+  scale_y_log10() +
+  scale_color_discrete(
+    labels = c(
+      `TRUE` = "Every Time Is in a HARP Lifetime",
+      `FALSE` = "No Time Is in a HARP Lifetime"
+    )
+  ) +
+  labs(x = "Run Start Time", y = "Run Length (Days)", color = "") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+The table below displays the five longest runs that have HARP data at each time. As stated above, only two runs are long enough that they can be carved into multiple reasonably-sized training sets.
+```{r}
+time_summary_tbl %>%
+  filter(is_in_harp_lifetime) %>%
+  select(!is_in_harp_lifetime) %>%
+  slice_max(days_elapsed, n = 5) %>%
+  mutate(days_elapsed = as.double(days_elapsed)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c(
+      "Run Start Time", "Run End Time",
+      "Run Length (Days)", "Run Length (Times)"
+    ),
+    align = "ccrr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+In the sequel, we will only consider times from the longest run.
+```{r}
+harp_tbl <- harp_tbl %>%
+  filter(
+    between(
+      T_REC,
+      as_datetime("2010-05-19 01:12:00"), as_datetime("2016-12-10 00:00:00")
+    )
+  )
+```
+
+# Analysis Using Solar Maximum Data
+
+We flag each HARP record as complete, incomplete, or missing. A complete record has values for all the SHARP parameters, the maximum and minimum longitudes, and the `QUALITY` keyword. An incomplete record is missing a value for at least one of those. A missing record doesn't have a value for any of them.
+
+```{r}
+na_flags <- harp_tbl %>%
+  select(all_of(sharp_params)) %>%
+  transmute(
+    is_rec_complete = vec_detect_complete(.),
+    is_rec_incomplete = !vec_detect_complete(.) & !vec_detect_missing(.),
+    is_rec_missing = vec_detect_missing(.)
+  )
+inf_flags <- harp_tbl %>%
+  select(all_of(sharp_params)) %>%
+  apply(1, function(r) any(is.infinite(r), na.rm = TRUE))
+harp_tbl <- harp_tbl %>%
+  bind_cols(na_flags) %>%
+  add_column(has_inf = inf_flags) %>%
+  mutate(
+    has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68,
+    is_low_quality = QUALITY != "0x00000000"
+  )
+```
+
+```{r}
+harp_tbl %>%
+  count(
+    is_rec_complete, is_rec_incomplete, is_rec_missing,
+    has_inf,
+    has_low_lon, has_high_lon,
+    is_low_quality,
+    sort = TRUE
+  ) %>%
+  mutate(prop = n / sum(n))
+```
+
+
+
+
+```{r}
+flag_cols <- harp_tbl %>%
+  select(all_of(sharp_params), LON_MAX, LON_MIN, QUALITY) %>%
+  transmute(
+    is_rec_complete = vec_detect_complete(.),
+    is_rec_incomplete = !vec_detect_complete(.) & !vec_detect_missing(.),
+    is_rec_missing = vec_detect_missing(.)
+  )
+harp_tbl <- bind_cols(harp_tbl, flag_cols)
+rm(flag_cols)
+```
+
+Almost all of the records are complete. Missing records are a bigger problem than incomplete records.
+```{r}
+harp_tbl %>%
+  count(is_rec_complete, is_rec_incomplete, is_rec_missing, sort = TRUE) %>%
+  mutate(prop = n / sum(n)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c(
+      "Is Record Complete?", "Is Record Incomplete?", "Is Record Missing?",
+      "Count", "Proportion"
+    ),
+    align = "cccrr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+It's most common for an incomplete record to be missing a value for ten SHARP parameters.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete) %>%
+  select(all_of(sharp_params)) %>%
+  add_column(num_nas = apply(., 1, function(r) sum(is.na(r)))) %>%
+  count(num_nas, sort = TRUE) %>%
+  mutate(prop = n / sum(n)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c("Number of NAs", "Count", "Proportion"),
+    align = "rrr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+All of the incomplete records that are missing values for ten SHARP parameters look the same. For these records, the SHARP parameters that do have values equal zero.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete) %>%
+  select(all_of(sharp_params)) %>%
+  add_column(num_nas = apply(., 1, function(r) sum(is.na(r)))) %>%
+  count(across(c(all_of(sharp_params), num_nas)), sort = TRUE) %>%
+  slice_head(n = 1) %>%
+  kable(
+    "html",
+    col.names = c(sharp_params, "Number of NAs", "Count"),
+    align = rep("r", 18),
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+The SHARP parameters that do have values for the records considered in the previous chunk are `ABSNJZH`, `SAVNCPP`, `TOTPOT`, `TOTUSJH`, `TOTUSJZ`, and `USFLUX`. The histograms below, which are based on complete, high-quality records from close to the central meridian, suggest that zero is an invalid value for these SHARP parameters, though the evidence of this for `ABSNJZH` is relatively weak. However, it isn't clear whether this is true from the descriptions at [this link](http://jsoc.stanford.edu/doc/data/hmi/sharp/sharp.htm).
+```{r}
+#| message: FALSE
+#| warning: FALSE
+
+set.seed(1)
+harp_tbl %>%
+  filter(
+    is_rec_complete,
+    abs(LON_MAX) <= 68, abs(LON_MIN) <= 68,
+    QUALITY == "0x00000000"
+  ) %>%
+  select(all_of(sharp_params)) %>%
+  mutate(across(everything(), abs)) %>%
+  pivot_longer(
+    everything(), names_to = "sharp_param", values_to = "abs_val"
+  ) %>%
+  group_by(sharp_param) %>%
+  slice_sample(n = 100000) %>%
+  ungroup() %>%
+  ggplot(aes(abs_val)) +
+  facet_wrap(vars(sharp_param), scales = "free_x") +
+  geom_histogram() +
+  scale_x_log10() +
+  labs(x = "Absolute Value", y = "Number of Records") +
+  theme_bw() +
+  theme(axis.text.x = element_text(vjust = 0.3, angle = 30))
+```
+
+Among the incomplete records that are missing just one value, the missing values are concentrated in just two SHARP parameters. Most of these records are missing a value for `MEANSHR`, but some are missing a value for `MEANGAM`.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete) %>%
+  select(all_of(sharp_params)) %>%
+  add_column(num_nas = apply(., 1, function(r) sum(is.na(r)))) %>%
+  filter(num_nas == 1) %>%
+  select(!num_nas) %>%
+  summarize(across(everything(), ~ mean(is.na(.x)))) %>%
+  kable("html", digits = 2) %>%
+  kable_styling()
+```
+
+Half of the incomplete records are missing their maximum and minimum longitudes;
+the other half have both.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete) %>%
+  mutate(is_lon_max_na = is.na(LON_MAX), is_lon_min_na = is.na(LON_MIN)) %>%
+  count(is_lon_max_na, is_lon_min_na, sort = TRUE) %>%
+  mutate(prop = n / sum(n)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c(
+      "Is Maximum Longitude Missing?", "Is Minimum Longitude Missing?",
+      "Count", "Proportion"
+    ),
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+Among the incomplete records that have both longitudes, there don't appear to be characteristic values for the longitudes, though there are concentrations of records with small values for both or large values for both.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete, !is.na(LON_MAX), !is.na(LON_MIN)) %>%
+  ggplot(aes(LON_MIN, LON_MAX)) +
+  geom_point(alpha = 0.3) +
+  labs(x = "Minimum Longitude", y = "Maximum Longitude") +
+  theme_bw()
+```
+
+Strangely, almost all the incomplete records have a `QUALITY` value of `0x00000000`, which is supposed to be the value for records that do not have problems.
+```{r}
+harp_tbl %>%
+  filter(is_rec_incomplete) %>%
+  count(QUALITY, sort = TRUE) %>%
+  mutate(prop = n / sum(n)) %>%
+  kable(
+    "html",
+    digits = 2,
+    col.names = c("QUALITY", "Count", "Proportion"),
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+For a given HARP, make a tibble with one row for each run of consecutive complete records and one row for each run of consecutive incomplete or missing records, i.e., records to which an imputation algorithm could be applied.
+```{r}
+make_harp_run_summary_tbl <- function(single_harp_tbl) {
+  single_harp_tbl %>%
+    pull(is_rec_complete) %>%
+    rle() %>%
+    unclass() %>%
+    as_tibble() %>%
+    rename(length = lengths, val_type = values) %>%
+    mutate(val_type = if_else(val_type, "Complete", "Incomplete/Missing"))
+}
+```
+
+Make a run summary tibble for each HARP.
+```{r}
+harp_run_summary_tbls <- harp_tbl %>%
+  nest(.by = HARPNUM, .key = "single_harp_tbl") %>%
+  mutate(
+    num_times = map_int(single_harp_tbl, nrow),
+    run_summary_tbl = map(single_harp_tbl, make_harp_run_summary_tbl),
+    num_runs = map_int(run_summary_tbl, nrow),
+    times_per_run = num_times / num_runs
+  )
+```
+
+For the typical HARP, the number of runs is in the low dozens, and the average number of times or records per run is also in the low dozens. The strange sawtooth pattern in the left histogram is due to the fact that a HARP is more likely to have an odd number of runs than an even number. This is because the first and last records should typically be complete, and thus the first and last runs should be runs of complete records; if this is the case, then the number of runs is odd.
+```{r}
+#| message: FALSE
+
+panel1 <- harp_run_summary_tbls %>%
+  ggplot(aes(num_runs)) +
+  geom_histogram(binwidth = 1, center = 0) +
+  labs(x = "Number of Runs", y = "Number of HARPs") +
+  theme_bw()
+panel2 <- harp_run_summary_tbls %>%
+  ggplot(aes(times_per_run)) +
+  geom_histogram() +
+  labs(x = "Average Number of Times per Run", y = "Number of HARPs") +
+  theme_bw()
+grid.arrange(panel1, panel2, nrow = 1)
+```
+
+**The main takeaway from the preceding analysis is that the missing values are concentrated in certain rows instead of being scattered across the dataset, which is what would be best for a multiple imputation algorithm like MICE. The rows the missing values lie in tend to occur in runs, making the imputation problem even more challenging.**
