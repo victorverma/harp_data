@@ -17,6 +17,8 @@ output:
 #| label: setup
 #| include: false
 
+here::i_am("notebooks/quality_analysis/quality_analysis.qmd")
+
 library(arrow)
 library(cowplot)
 library(gridExtra)
@@ -26,7 +28,7 @@ library(knitr)
 library(tidyverse)
 library(vctrs)
 
-harp_tbl <- read_parquet("../data/processed/harp_data.parquet")
+harp_tbl <- read_parquet(here("data/processed/harp_data.parquet"))
 ```
 
 In this analysis, we investigate quality issues in HARP data for the period `r str_c(format(range(harp_tbl$T_REC), "%F"), collapse = " to ")`. This data was obtained using the code in [this `git` repository](https://github.com/victorverma/harp_data).
