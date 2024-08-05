@@ -31,7 +31,7 @@ library(vctrs)
 harp_tbl <- read_parquet(here("data/processed/harp_data.parquet"))
 ```
 
-In this analysis, we investigate quality issues in HARP data for the period `r str_c(format(range(harp_tbl$T_REC), "%F"), collapse = " to ")`. This data was obtained using the code in [this `git` repository](https://github.com/victorverma/harp_data).
+In this analysis, we investigate quality issues in the HARP data for the period `r str_c(format(range(harp_tbl$T_REC), "%F"), collapse = " to ")`.
 
 The vector below will prove to be useful.
 ```{r}
