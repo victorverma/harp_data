@@ -33,15 +33,6 @@ harp_tbl <- read_parquet(here("data/processed/harp_data.parquet"))
 
 In this analysis, we investigate quality issues in the HARP data for the period `r str_c(format(range(harp_tbl$T_REC), "%F"), collapse = " to ")`.
 
-The vector below will prove to be useful.
-```{r}
-sharp_params <- c(
-  "USFLUX", "MEANGAM", "MEANGBT", "MEANGBZ", "MEANGBH", "MEANJZD", "TOTUSJZ",
-  "MEANALP", "MEANJZH", "TOTUSJH", "ABSNJZH", "SAVNCPP", "MEANPOT", "TOTPOT",
-  "MEANSHR", "SHRGT45"
-)
-```
-
 # Use Only Solar Maximum Data
 
 For times between the first and last times in the data, we flag those that lie within the lifetime of some HARP.
@@ -141,15 +132,22 @@ harp_tbl <- filter(
 )
 ```
 
-# Analysis Using Solar Maximum Data
+# Problems in the Solar Maximum Data
 
-We flag each HARP record as complete, incomplete, or missing. A complete record has values for all the SHARP parameters, the maximum and minimum longitudes, and the `QUALITY` keyword. An incomplete record is missing a value for at least one of those. A missing record doesn't have a value for any of them.
+The vector below will prove to be useful. The list of SHARP parameters was obtained from [here](http://jsoc.stanford.edu/doc/data/hmi/sharp/sharp.htm).
+```{r}
+sharp_params <- c(
+  "USFLUX", "MEANGAM", "MEANGBT", "MEANGBZ", "MEANGBH", "MEANJZD", "TOTUSJZ",
+  "MEANALP", "MEANJZH", "TOTUSJH", "ABSNJZH", "SAVNCPP", "MEANPOT", "TOTPOT",
+  "MEANSHR", "SHRGT45"
+)
+```
 
+A HARP record can have one or more problems. A record can be missing a value for a SHARP parameter; we call such records incomplete. If a record is missing values for all SHARP parameters, we call it missing. For certain records, some SHARP parameter is infinite. Finally, some records are marked as low-quality. We flag records with these problems. We also flag records for which part or all of the bounding box was more than 68 degrees from the central meridian. Image quality degrades near the limb of the Sun, so the problems for a record could be due to the bounding box being far from the central meridian.
 ```{r}
 na_flags <- harp_tbl %>%
   select(all_of(sharp_params)) %>%
   transmute(
-    is_rec_complete = vec_detect_complete(.),
     is_rec_incomplete = !vec_detect_complete(.) & !vec_detect_missing(.),
     is_rec_missing = vec_detect_missing(.)
   )
@@ -160,55 +158,34 @@ harp_tbl <- harp_tbl %>%
   bind_cols(na_flags) %>%
   add_column(has_inf = inf_flags) %>%
   mutate(
-    has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68,
-    is_low_quality = QUALITY != "0x00000000"
+    is_low_quality = QUALITY != "0x00000000",
+    has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68
   )
 ```
 
+Most records don't have any of the problems described above, but a sizable fraction have some problem. Only `r signif(100 * mean(with(harp_tbl, is_rec_missing + is_rec_incomplete + has_inf + coalesce(is_low_quality, FALSE)) > 1), 2)`\% of records have more than one problem. The most important subsets of problematic records consist of records that are only missing (`r signif(100 * mean(harp_tbl$is_rec_missing), 2)`\% of records), records that are only low-quality (`r signif(100 * mean(coalesce(harp_tbl$is_low_quality, FALSE)), 2)`\% of records), and records that are only incomplete (`r signif(100 * mean(harp_tbl$is_rec_incomplete), 2)`\% of records). Records with an infinite value are virtually nonexistent.
 ```{r}
 harp_tbl %>%
   count(
-    is_rec_complete, is_rec_incomplete, is_rec_missing,
-    has_inf,
-    has_low_lon, has_high_lon,
-    is_low_quality,
-    sort = TRUE
+    is_rec_missing, is_rec_incomplete, has_inf, is_low_quality, sort = TRUE
   ) %>%
-  mutate(prop = n / sum(n))
-```
-
-
-
-
-```{r}
-flag_cols <- harp_tbl %>%
-  select(all_of(sharp_params), LON_MAX, LON_MIN, QUALITY) %>%
-  transmute(
-    is_rec_complete = vec_detect_complete(.),
-    is_rec_incomplete = !vec_detect_complete(.) & !vec_detect_missing(.),
-    is_rec_missing = vec_detect_missing(.)
-  )
-harp_tbl <- bind_cols(harp_tbl, flag_cols)
-rm(flag_cols)
-```
-
-Almost all of the records are complete. Missing records are a bigger problem than incomplete records.
-```{r}
-harp_tbl %>%
-  count(is_rec_complete, is_rec_incomplete, is_rec_missing, sort = TRUE) %>%
   mutate(prop = n / sum(n)) %>%
   kable(
     "html",
     digits = 2,
     col.names = c(
-      "Is Record Complete?", "Is Record Incomplete?", "Is Record Missing?",
-      "Count", "Proportion"
+      "Is Record Missing?", "Is Record Incomplete?",
+      "Does Record Have an \u221e?",
+      "Is Record Low-Quality?",
+      "Number of Records", "Proportion of Records"
     ),
     align = "cccrr",
     format.args = list(big.mark = ",")
   ) %>%
   kable_styling()
 ```
+
+# Investigations into the Problems
 
 It's most common for an incomplete record to be missing a value for ten SHARP parameters.
 ```{r}
@@ -243,6 +220,10 @@ harp_tbl %>%
     format.args = list(big.mark = ",")
   ) %>%
   kable_styling()
+```
+
+```{r}
+knitr::opts_chunk$set(eval = FALSE)
 ```
 
 The SHARP parameters that do have values for the records considered in the previous chunk are `ABSNJZH`, `SAVNCPP`, `TOTPOT`, `TOTUSJH`, `TOTUSJZ`, and `USFLUX`. The histograms below, which are based on complete, high-quality records from close to the central meridian, suggest that zero is an invalid value for these SHARP parameters, though the evidence of this for `ABSNJZH` is relatively weak. However, it isn't clear whether this is true from the descriptions at [this link](http://jsoc.stanford.edu/doc/data/hmi/sharp/sharp.htm).
