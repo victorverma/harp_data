@@ -185,6 +185,69 @@ harp_tbl %>%
   kable_styling()
 ```
 
+# A Possible Cause of the Problems: HARP Age
+
+It could be that when a HARP is near the beginning or close to the end of its lifetime, it's difficult to detect, causing data quality problems. We investigate this possibility in this section. For each HARP, for each time in its lifespan, we can compute the corresponding lifespan fraction, with the first time corresponding to a lifespan fraction of zero, and the last time corresponding to a lifespan fraction of one.
+```{r}
+harp_tbl <- harp_tbl %>%
+  group_by(HARPNUM) %>%
+  mutate(lifespan_frac = seq(0, 1, length.out = n())) %>%
+  ungroup()
+```
+
+Next, across all HARPs, we can bin the various lifespan fraction values, and for each bin, we can compute the proportions of corresponding records that are missing, incomplete, and low-quality. This is done below.
+```{r}
+#| message: false
+
+breaks <- seq(0, 1, by = 0.05)
+midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
+breaks[length(breaks)] <- Inf
+prop_tbl <- harp_tbl %>%
+  mutate(
+    lifespan_frac = cut(lifespan_frac, breaks = breaks, right = FALSE),
+    midpoint = midpoints[as.integer(lifespan_frac)]
+  ) %>%
+  group_by(lifespan_frac, midpoint) %>%
+  summarize(
+    missing_rec_prop = mean(is_rec_missing),
+    incomplete_rec_prop = mean(is_rec_incomplete),
+    low_quality_prop = mean(is_low_quality, na.rm = TRUE)
+  ) %>%
+  ungroup()
+```
+
+If youth or old age causes data quality problems, the various proportions computed in the previous chunk should decrease and then increase as the lifespan fraction increases. Below, we plot the proportions versus the midpoints of the lifespan fraction bins. We see exactly the pattern we would expect in the incomplete record curve. Youth doesn't appear to contribute to missingness, but old age appears to; the proportion of missing records rises as the lifespan fraction increases, with the rate of growth higher for larger lifespan fractions. Age has no effect on the low-quality proportion.
+```{r}
+#| label: prop_plot
+
+prop_tbl %>%
+  pivot_longer(
+    cols = !c(lifespan_frac, midpoint),
+    names_to = "prop_type", names_pattern = "([a-z_]+)_prop",
+    values_to = "prop_val"
+  ) %>%
+  ggplot(aes(midpoint, prop_val, linetype = prop_type)) +
+  geom_line() +
+  scale_linetype_manual(
+    labels = c(
+      missing_rec = "Missing Record",
+      incomplete_rec = "Incomplete Record",
+      low_quality = "Low-Quality Record"
+    ),
+    values = c("solid", "dashed", "dotted")
+  ) +
+  labs(
+    x = "Lifespan Fraction", y = "Proportion Value",
+    linetype = "Proportion Type"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.15, 0.82),
+    legend.background = element_rect(fill = NA)
+  )
+```
+
 # Investigations into the Problems
 
 It's most common for an incomplete record to be missing a value for ten SHARP parameters.
