@@ -4,8 +4,8 @@ author: "Victor Verma"
 date: 2024-08-02
 date-format: iso
 published-title: "Date Created"
-output:
-  html_document:
+format:
+  html:
     embed-resources: true
     toc: true
     toc-location: left
