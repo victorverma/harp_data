@@ -188,7 +188,7 @@ harp_tbl %>%
 
 # Possible Causes of the Problems
 
-## HARP Age
+## HARP Age {#sec-harp-age}
 
 It could be that when a HARP is near the beginning or close to the end of its lifetime, it's difficult to detect, causing data quality problems. We investigate this possibility in this section. For each HARP, for each time in its lifespan, we can compute the corresponding lifespan fraction, with the first time corresponding to a lifespan fraction of zero, and the last time corresponding to a lifespan fraction of one.
 ```{r}
@@ -320,8 +320,6 @@ make_impute_plot <- function(one_harp_tbl, harp_num, color_imputes = FALSE) {
 
 We impute longitudes for each HARP and then plot them.
 ```{r}
-#| cache: true
-
 one_harp_tbls <- harp_tbl %>%
   nest(.by = HARPNUM, .key = "one_harp_tbl") %>%
   mutate(
@@ -379,6 +377,66 @@ harp_tbl %>%
 We update the data with the imputed values.
 ```{r}
 harp_tbl <- one_harp_tbls %>% select(!impute_plot) %>% unnest(one_harp_tbl)
+```
+
+There is an issue if either the minimum longitude is too small or the maximum longitude is too big. Hence, there is an issue if the absolute value of one of these is too big. We compute the two absolute values and then take the larger of the two.
+```{r}
+harp_tbl <- mutate(harp_tbl, max_abs_lon = pmax(abs(LON_MIN), abs(LON_MAX)))
+max_abs_lon_range <- range(harp_tbl$max_abs_lon)
+```
+
+We follow the approach taken in @sec-harp-age. We bin the maximum absolute longitudes across all HARPs, and for each bin, we compute the proportions of the corresponding records with the various problems.
+```{r}
+#| message: false
+
+breaks <- seq(
+  floor(max_abs_lon_range[1]), ceiling(max_abs_lon_range[2]), length.out = 20
+)
+midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
+breaks[length(breaks)] <- Inf
+prop_tbl <- harp_tbl %>%
+  mutate(
+    max_abs_lon = cut(max_abs_lon, breaks = breaks, right = FALSE),
+    midpoint = midpoints[as.integer(max_abs_lon)]
+  ) %>%
+  group_by(max_abs_lon, midpoint) %>%
+  summarize(
+    missing_rec_prop = mean(is_rec_missing),
+    incomplete_rec_prop = mean(is_rec_incomplete),
+    low_quality_prop = mean(is_low_quality, na.rm = TRUE)
+  ) %>%
+  ungroup()
+```
+
+Longitude has a strong effect on incompleteness; the incompleteness proportion is near zero until 90°, where it skyrockets. The effect of longitude on missingness isn't as strong, but it's still substantial. The missingness proportion decreases from above 0.1 until 90°, where it surges. Finally, longitude has no effect on the low quality proportion; it hovers around 0.05-0.1 throughout the range of the maximum absolute longitude.
+```{r}
+prop_tbl %>%
+  pivot_longer(
+    cols = !c(max_abs_lon, midpoint),
+    names_to = "prop_type", names_pattern = "([a-z_]+)_prop",
+    values_to = "prop_val"
+  ) %>%
+  ggplot(aes(midpoint, prop_val, linetype = prop_type)) +
+  geom_line() +
+  scale_linetype_manual(
+    labels = c(
+      missing_rec = "Missing Record",
+      incomplete_rec = "Incomplete Record",
+      low_quality = "Low-Quality Record"
+    ),
+    values = c("solid", "dashed", "dotted")
+  ) +
+  labs(
+    x = expression("Maximum Absolute Longitude (" * degree * ")"),
+    y = "Proportion Value",
+    linetype = "Proportion Type"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.15, 0.82),
+    legend.background = element_rect(fill = NA)
+  )
 ```
 
 # Investigations into the Problems
