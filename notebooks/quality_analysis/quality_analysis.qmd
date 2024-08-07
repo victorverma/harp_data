@@ -172,16 +172,16 @@ harp_tbl <- harp_tbl %>%
   bind_cols(na_flags) %>%
   add_column(has_inf = inf_flags) %>%
   mutate(
-    is_low_quality = QUALITY != "0x00000000",
+    is_quality_low = QUALITY != "0x00000000",
     has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68
   )
 ```
 
-Most records don't have any of the problems described above, but a sizable fraction have some problem. Only `r signif(100 * mean(with(harp_tbl, is_rec_missing + is_rec_incomplete + has_inf + coalesce(is_low_quality, FALSE)) > 1), 2)`\% of records have more than one problem. The most important subsets of problematic records consist of records that are only missing (`r signif(100 * mean(harp_tbl$is_rec_missing), 2)`\% of records), records that are only low-quality (`r signif(100 * mean(coalesce(harp_tbl$is_low_quality, FALSE)), 2)`\% of records), and records that are only incomplete (`r signif(100 * mean(harp_tbl$is_rec_incomplete), 2)`\% of records). Records with an infinite value are virtually nonexistent.
+Most records don't have any of the problems described above, but a sizable fraction have some problem. Only `r signif(100 * mean(with(harp_tbl, is_rec_missing + is_rec_incomplete + has_inf + coalesce(is_quality_low, FALSE)) > 1), 2)`\% of records have more than one problem. The most important subsets of problematic records consist of records that are only missing (`r signif(100 * mean(harp_tbl$is_rec_missing), 2)`\% of records), records that are only low-quality (`r signif(100 * mean(coalesce(harp_tbl$is_quality_low, FALSE)), 2)`\% of records), and records that are only incomplete (`r signif(100 * mean(harp_tbl$is_rec_incomplete), 2)`\% of records). Records with an infinite value are virtually nonexistent.
 ```{r}
 harp_tbl %>%
   count(
-    is_rec_missing, is_rec_incomplete, has_inf, is_low_quality, sort = TRUE
+    is_rec_missing, is_rec_incomplete, has_inf, is_quality_low, sort = TRUE
   ) %>%
   mutate(prop = n / sum(n)) %>%
   kable(
@@ -227,7 +227,7 @@ prop_tbl <- harp_tbl %>%
   summarize(
     missing_rec_prop = mean(is_rec_missing),
     incomplete_rec_prop = mean(is_rec_incomplete),
-    low_quality_prop = mean(is_low_quality, na.rm = TRUE)
+    low_quality_prop = mean(is_quality_low, na.rm = TRUE)
   ) %>%
   ungroup()
 ```
@@ -416,7 +416,7 @@ prop_tbl <- harp_tbl %>%
   summarize(
     missing_rec_prop = mean(is_rec_missing),
     incomplete_rec_prop = mean(is_rec_incomplete),
-    low_quality_prop = mean(is_low_quality, na.rm = TRUE)
+    low_quality_prop = mean(is_quality_low, na.rm = TRUE)
   ) %>%
   ungroup()
 ```
