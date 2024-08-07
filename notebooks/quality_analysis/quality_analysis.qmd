@@ -23,6 +23,7 @@ library(arrow)
 library(cowplot)
 library(gridExtra)
 library(here)
+library(imputeTS)
 library(kableExtra)
 library(knitr)
 library(tidyverse)
@@ -132,7 +133,7 @@ harp_tbl <- filter(
 )
 ```
 
-# Problems in the Solar Maximum Data
+# Problems in the Solar Maximum Data {#sec-solar-max-data-probs}
 
 The vector below will prove to be useful. The list of SHARP parameters was obtained from [here](http://jsoc.stanford.edu/doc/data/hmi/sharp/sharp.htm).
 ```{r}
@@ -185,7 +186,9 @@ harp_tbl %>%
   kable_styling()
 ```
 
-# A Possible Cause of the Problems: HARP Age
+# Possible Causes of the Problems
+
+## HARP Age
 
 It could be that when a HARP is near the beginning or close to the end of its lifetime, it's difficult to detect, causing data quality problems. We investigate this possibility in this section. For each HARP, for each time in its lifespan, we can compute the corresponding lifespan fraction, with the first time corresponding to a lifespan fraction of zero, and the last time corresponding to a lifespan fraction of one.
 ```{r}
@@ -248,7 +251,141 @@ prop_tbl %>%
   )
 ```
 
+## Extreme Longitudes
+
+As mentioned at the beginning of @sec-solar-max-data-probs, problems in the data for a HARP could be due to the bounding box of the HARP being too close to the limb of the Sun. This is the case if the longitude of the left side of the box is sufficiently small or the longitude of the right side is sufficiently large. We follow others in defining "sufficiently small" to mean below -68° and "sufficiently large" to mean above 68°. In this section, we study the extent to which proximity to the limb contributes to data quality issues.
+
+We first need to impute longitudes for missing records. A HARP is in a roughly fixed location in the solar atmosphere; it appears to move because of the Sun's rotation. The apparent motion of a HARP occurs at a speed equal to the rotation rate at its latitude, which can vary somewhat over time. It follows that longitudes can be imputed using linear interpolation and linear regression. If a missing record lies between two records with longitudes, we can linearly interpolate its longitude. We can then use linear regression to interpolate longitudes for the remaining missing records. The `impute()` function below takes this approach. The `make_impute_plot()` function plots the minimum and maximum longitudes, i.e., the longitudes of the sides of the bounding box, as a function of time, with the imputed longitudes optionally highlighted in orange.
+```{r}
+impute <- function(one_harp_tbl) {
+  one_harp_tbl <- mutate(
+    one_harp_tbl,
+    LON_MIN = na_interpolation(LON_MIN, rule = 1),
+    LON_MAX = na_interpolation(LON_MAX, rule = 1)
+  )
+  if (anyNA(one_harp_tbl$LON_MIN) || anyNA(one_harp_tbl$LON_MAX)) {
+    one_harp_tbl <- mutate(one_harp_tbl, row_num = row_number())
+    mod <- lm(cbind(LON_MIN, LON_MAX) ~ row_num, data = one_harp_tbl)
+    preds <- predict(mod, one_harp_tbl)
+    one_harp_tbl <- mutate(
+      one_harp_tbl,
+      LON_MIN = coalesce(LON_MIN, preds[, "LON_MIN"]),
+      LON_MAX = coalesce(LON_MAX, preds[, "LON_MAX"])
+    )
+  }
+  mutate(one_harp_tbl, has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68)
+}
+
+make_impute_plot <- function(one_harp_tbl, harp_num, color_imputes = FALSE) {
+  start_time <- end_time <- NULL
+  with(
+    one_harp_tbl,
+    {
+      start_time <<- format(first(T_REC), "%Y-%m-%d %H:%M:%S")
+      end_time <<- format(last(T_REC), "%Y-%m-%d %H:%M:%S")
+    }
+  )
+  plot <- one_harp_tbl %>%
+    ggplot(aes(T_REC)) +
+    geom_hline(yintercept = c(-68, 68), colour = "red", linetype = "dashed") +
+    labs(
+      x = "Time", y = expression("Minimum/Maximum Longitude (" * degree * ")"),
+      title = str_glue("HARP {harp_num}"),
+      subtitle = str_glue("Duration: {start_time} to {end_time}"),
+      caption = expression("Dashed red lines are at " %+-% 68 * degree)
+    ) +
+    theme_bw() +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+  if (color_imputes) {
+    plot <- plot +
+      geom_point(aes(y = LON_MIN, color = is_rec_missing), shape = "bullet") +
+      geom_point(aes(y = LON_MAX, color = is_rec_missing), shape = "bullet") +
+      scale_color_manual(
+        labels = c(`TRUE` = "Yes", `FALSE` = "No"),
+        values = c(`TRUE` = "orange", `FALSE` = "black")
+      ) +
+      guides(color = guide_legend(override.aes = list(shape = "circle"))) +
+      labs(color = "Was Value Imputed?") +
+      theme(legend.position = "bottom")
+
+  } else {
+    plot <- plot + geom_line(aes(y = LON_MIN)) + geom_line(aes(y = LON_MAX))
+  }
+  plot
+}
+```
+
+We impute longitudes for each HARP and then plot them.
+```{r}
+#| cache: true
+
+one_harp_tbls <- harp_tbl %>%
+  nest(.by = HARPNUM, .key = "one_harp_tbl") %>%
+  mutate(
+    one_harp_tbl = map(one_harp_tbl, impute),
+    impute_plot = map2(one_harp_tbl, HARPNUM, make_impute_plot)
+  )
+```
+
+The code below can be used to create a pdf with one page for each plot; it's displayed but not run, as it takes a few minutes to run.
+```{r}
+#| eval: false
+
+pdf(here("notebooks/quality_analysis/impute_plots.pdf"))
+with(one_harp_tbls, walk(impute_plot, print))
+dev.off()
+```
+
+Looking at the pdf, the imputations seem to be reasonable, except for HARP 2116.
+```{r}
+#| label: harp_2116_lon_plot
+
+one_harp_tbls %>%
+  filter(HARPNUM == "2116") %>%
+  with(make_impute_plot(one_harp_tbl[[1]], HARPNUM[1], color_imputes = TRUE))
+```
+
+The pattern in the non-missing longitudes for HARP 2116 suggests that the HARP rotated out of view and then back into view. Below is a plot of the HARP's minimum and maximum latitudes, i.e., the latitudes of the bottom and top of the bounding box. Given its latitudes, one could work out whether it's plausible that the HARP disappeared and then reappeared, but we do not do that here.
+```{r}
+#| label: harp_2116_lat_plot
+
+start_time <- end_time <- NULL
+harp_tbl %>%
+  filter(HARPNUM == "2116") %>%
+  with({
+    start_time <<- format(first(T_REC), "%Y-%m-%d %H:%M:%S")
+    end_time <<- format(last(T_REC), "%Y-%m-%d %H:%M:%S")
+  })
+harp_tbl %>%
+  filter(HARPNUM == "2116") %>%
+  ggplot(aes(T_REC)) +
+  geom_line(aes(y = LAT_MIN)) +
+  geom_line(aes(y = LAT_MAX)) +
+  labs(
+    x = "Time", y = expression("Minimum/Maximum Latitude (" * degree * ")"),
+    title = "HARP 2116",
+    subtitle = str_glue("Duration: {start_time} to {end_time}")
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+```
+
+We update the data with the imputed values.
+```{r}
+harp_tbl <- one_harp_tbls %>% select(!impute_plot) %>% unnest(one_harp_tbl)
+```
+
 # Investigations into the Problems
+
+```{r}
+knitr::opts_chunk$set(eval = FALSE)
+```
 
 It's most common for an incomplete record to be missing a value for ten SHARP parameters.
 ```{r}
@@ -283,10 +420,6 @@ harp_tbl %>%
     format.args = list(big.mark = ",")
   ) %>%
   kable_styling()
-```
-
-```{r}
-knitr::opts_chunk$set(eval = FALSE)
 ```
 
 The SHARP parameters that do have values for the records considered in the previous chunk are `ABSNJZH`, `SAVNCPP`, `TOTPOT`, `TOTUSJH`, `TOTUSJZ`, and `USFLUX`. The histograms below, which are based on complete, high-quality records from close to the central meridian, suggest that zero is an invalid value for these SHARP parameters, though the evidence of this for `ABSNJZH` is relatively weak. However, it isn't clear whether this is true from the descriptions at [this link](http://jsoc.stanford.edu/doc/data/hmi/sharp/sharp.htm).
