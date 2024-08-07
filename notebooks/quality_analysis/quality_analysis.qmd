@@ -145,7 +145,7 @@ sharp_params <- c(
 )
 ```
 
-A HARP record can have one or more problems. A record can be missing a value for a SHARP parameter; we call such records incomplete. If a record is missing values for all SHARP parameters, we call it missing. For certain records, some SHARP parameter is infinite. Finally, some records are marked as low-quality. We flag records with these problems. We also flag records for which part or all of the bounding box was more than 68 degrees from the central meridian. Image quality degrades near the limb of the Sun, so the problems for a record could be due to the bounding box being far from the central meridian.
+A HARP record can have one or more problems. A record can be missing values for all SHARP parameters; we call such records missing. A record can be missing values for some, but not all SHARP parameters; we call such records incomplete. We flag records with these problems.
 ```{r}
 na_flags <- harp_tbl %>%
   select(all_of(sharp_params)) %>%
@@ -153,6 +153,18 @@ na_flags <- harp_tbl %>%
     is_rec_incomplete = !vec_detect_complete(.) & !vec_detect_missing(.),
     is_rec_missing = vec_detect_missing(.)
   )
+```
+
+Note that all SHARP parameters are missing if and only if all keywords are missing.
+```{r}
+harp_tbl %>%
+  select(!c(HARPNUM, T_REC)) %>%
+  vec_detect_missing() %>%
+  identical(na_flags$is_rec_missing)
+```
+
+Another problem is that for certain records, some SHARP parameter is infinite. Yet another is that some records are marked as low-quality. We flag records with these problems. We also flag records for which part or all of the bounding box was more than 68 degrees from the central meridian. Image quality degrades near the limb of the Sun, so the problems for a record could be due to the bounding box being far from the central meridian.
+```{r}
 inf_flags <- harp_tbl %>%
   select(all_of(sharp_params)) %>%
   apply(1, function(r) any(is.infinite(r), na.rm = TRUE))
