@@ -40,6 +40,7 @@ For times between the first and last times in the data, we flag those that lie w
 ```{r}
 time_tbl <- harp_tbl %>%
   distinct(T_REC) %>%
+  arrange(T_REC) %>%
   add_column(is_in_harp_lifetime = TRUE) %>%
   complete(T_REC = full_seq(T_REC, period = 720)) %>%
   mutate(is_in_harp_lifetime = coalesce(is_in_harp_lifetime, FALSE))
@@ -73,8 +74,8 @@ time_summary_tbl <- time_tbl %>%
   ) %>%
   group_by(run_id, is_in_harp_lifetime) %>%
   summarize(
-    start_time = min(T_REC),
-    end_time = max(T_REC),
+    start_time = first(T_REC),
+    end_time = last(T_REC),
     days_elapsed = difftime(max(T_REC), min(T_REC), units = "days"),
     num_times = length(T_REC)
   ) %>%
