@@ -341,7 +341,7 @@ one_harp_tbls <- harp_tbl %>%
   )
 ```
 
-The code below can be used to create a pdf with one page for each plot; it's displayed but not run, as it takes a few minutes to run.
+The code below can be used to create a PDF with one page for each plot; it's displayed but not run, as it takes a few minutes to run.
 ```{r}
 #| eval: false
 
@@ -350,7 +350,7 @@ with(one_harp_tbls, walk(impute_plot, print))
 dev.off()
 ```
 
-Looking at the pdf, the imputations seem to be reasonable, except for HARP 2116.
+Looking at the PDF, the imputations seem to be reasonable, except for HARP 2116.
 ```{r}
 #| label: harp_2116_lon_plot
 
