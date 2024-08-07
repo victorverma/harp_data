@@ -264,11 +264,11 @@ prop_tbl %>%
   )
 ```
 
-## Extreme Longitudes
+## Extreme HARP Longitudes
 
 As mentioned at the beginning of @sec-solar-max-data-probs, problems in the data for a HARP could be due to it being too close to the limb of the Sun. This is the case if the longitude of the left side of the HARP is sufficiently small or the longitude of the right side is sufficiently large. We follow others in defining "sufficiently small" to mean below -68° and "sufficiently large" to mean above 68°. In this section, we study the extent to which proximity to the limb contributes to data quality issues.
 
-We first need to impute longitudes for missing records. A HARP is in a roughly fixed location in the solar atmosphere; it appears to move because of the Sun's rotation. The apparent motion of a HARP occurs at a speed equal to the rotation rate at its latitude, which can vary somewhat over time. It follows that longitudes can be imputed using linear interpolation and linear regression. If a missing record lies between two records with longitudes, we can linearly interpolate its longitude. We can then use linear regression to interpolate longitudes for the remaining missing records. The `impute()` function below takes this approach. The `make_impute_plot()` function plots the minimum and maximum longitudes, i.e., the longitudes of the left and right sides of the HARP, as a function of time, with the imputed longitudes optionally highlighted in orange.
+We first need to impute longitudes for missing records. Since the apparent motion of a HARP across the face of the Sun is due to the rotation of the Sun, the motion occurs at a speed equal to the rotation rate at the HARP's latitude, which can vary somewhat over time. It follows that longitudes can be imputed using linear interpolation and linear regression. If a missing record lies between two records with longitudes, we can linearly interpolate its longitude using the longitudes from those two records. We can then use linear regression to interpolate longitudes for the remaining missing records. The `impute()` function below takes this approach. The `make_impute_plot()` function plots the minimum and maximum longitudes, i.e., the longitudes of the left and right sides of the HARP, as a function of time, with the imputed longitudes optionally highlighted in orange.
 ```{r}
 impute <- function(one_harp_tbl) {
   one_harp_tbl <- mutate(
@@ -280,11 +280,12 @@ impute <- function(one_harp_tbl) {
     one_harp_tbl <- mutate(one_harp_tbl, row_num = row_number())
     mod <- lm(cbind(LON_MIN, LON_MAX) ~ row_num, data = one_harp_tbl)
     preds <- predict(mod, one_harp_tbl)
-    one_harp_tbl <- mutate(
-      one_harp_tbl,
-      LON_MIN = coalesce(LON_MIN, preds[, "LON_MIN"]),
-      LON_MAX = coalesce(LON_MAX, preds[, "LON_MAX"])
-    )
+    one_harp_tbl <- one_harp_tbl %>%
+      select(!row_num) %>%
+      mutate(
+        LON_MIN = coalesce(LON_MIN, preds[, "LON_MIN"]),
+        LON_MAX = coalesce(LON_MAX, preds[, "LON_MAX"])
+      )
   }
   mutate(one_harp_tbl, has_low_lon = LON_MIN < -68, has_high_lon = LON_MAX > 68)
 }
