@@ -163,7 +163,7 @@ harp_tbl %>%
   identical(na_flags$is_rec_missing)
 ```
 
-Another problem is that for certain records, some SHARP parameter is infinite. Yet another is that some records are marked as low-quality. We flag records with these problems. We also flag records for which part or all of the bounding box was more than 68 degrees from the central meridian. Image quality degrades near the limb of the Sun, so the problems for a record could be due to the bounding box being far from the central meridian.
+Another problem is that for certain records, some SHARP parameter is infinite. Yet another is that some records are marked as low-quality. We flag records with these problems. We also flag records for which part or all of HARP was more than 68 degrees from the central meridian. Image quality degrades near the limb of the Sun, so the problems for a record could be due to the HARP being far from the central meridian.
 ```{r}
 inf_flags <- harp_tbl %>%
   select(all_of(sharp_params)) %>%
@@ -211,7 +211,7 @@ harp_tbl <- harp_tbl %>%
   ungroup()
 ```
 
-Next, across all HARPs, we can bin the various lifespan fraction values, and for each bin, we can compute the proportions of corresponding records that are missing, incomplete, and low-quality. This is done below.
+Next, across all HARPs, we can bin the various lifespan fraction values, and for each bin, we can compute the proportions of the corresponding records that are missing, incomplete, and low-quality. This is done below.
 ```{r}
 #| message: false
 
@@ -232,7 +232,7 @@ prop_tbl <- harp_tbl %>%
   ungroup()
 ```
 
-If youth or old age causes data quality problems, the various proportions computed in the previous chunk should decrease and then increase as the lifespan fraction increases. Below, we plot the proportions versus the midpoints of the lifespan fraction bins. We see exactly the pattern we would expect in the incomplete record curve. Youth doesn't appear to contribute to missingness, but old age appears to; the proportion of missing records rises as the lifespan fraction increases, with the rate of growth higher for larger lifespan fractions. Age has no effect on the low-quality proportion.
+If youth or old age causes data quality problems, the various proportions computed in the previous chunk should decrease and then increase as the lifespan fraction increases. Below, we plot the proportions versus the midpoints of the lifespan fraction bins. We see exactly the pattern we would expect in the incomplete record curve. Youth doesn't appear to contribute to missingness, but old age appears to; the proportion of missing records rises as the lifespan fraction increases, with the rate of growth being higher for larger lifespan fractions. Age has no effect on the low-quality proportion.
 ```{r}
 #| label: prop_plot
 
@@ -266,9 +266,9 @@ prop_tbl %>%
 
 ## Extreme Longitudes
 
-As mentioned at the beginning of @sec-solar-max-data-probs, problems in the data for a HARP could be due to the bounding box of the HARP being too close to the limb of the Sun. This is the case if the longitude of the left side of the box is sufficiently small or the longitude of the right side is sufficiently large. We follow others in defining "sufficiently small" to mean below -68° and "sufficiently large" to mean above 68°. In this section, we study the extent to which proximity to the limb contributes to data quality issues.
+As mentioned at the beginning of @sec-solar-max-data-probs, problems in the data for a HARP could be due to it being too close to the limb of the Sun. This is the case if the longitude of the left side of the HARP is sufficiently small or the longitude of the right side is sufficiently large. We follow others in defining "sufficiently small" to mean below -68° and "sufficiently large" to mean above 68°. In this section, we study the extent to which proximity to the limb contributes to data quality issues.
 
-We first need to impute longitudes for missing records. A HARP is in a roughly fixed location in the solar atmosphere; it appears to move because of the Sun's rotation. The apparent motion of a HARP occurs at a speed equal to the rotation rate at its latitude, which can vary somewhat over time. It follows that longitudes can be imputed using linear interpolation and linear regression. If a missing record lies between two records with longitudes, we can linearly interpolate its longitude. We can then use linear regression to interpolate longitudes for the remaining missing records. The `impute()` function below takes this approach. The `make_impute_plot()` function plots the minimum and maximum longitudes, i.e., the longitudes of the sides of the bounding box, as a function of time, with the imputed longitudes optionally highlighted in orange.
+We first need to impute longitudes for missing records. A HARP is in a roughly fixed location in the solar atmosphere; it appears to move because of the Sun's rotation. The apparent motion of a HARP occurs at a speed equal to the rotation rate at its latitude, which can vary somewhat over time. It follows that longitudes can be imputed using linear interpolation and linear regression. If a missing record lies between two records with longitudes, we can linearly interpolate its longitude. We can then use linear regression to interpolate longitudes for the remaining missing records. The `impute()` function below takes this approach. The `make_impute_plot()` function plots the minimum and maximum longitudes, i.e., the longitudes of the left and right sides of the HARP, as a function of time, with the imputed longitudes optionally highlighted in orange.
 ```{r}
 impute <- function(one_harp_tbl) {
   one_harp_tbl <- mutate(
@@ -359,7 +359,7 @@ one_harp_tbls %>%
   with(make_impute_plot(one_harp_tbl[[1]], HARPNUM[1], color_imputes = TRUE))
 ```
 
-The pattern in the non-missing longitudes for HARP 2116 suggests that the HARP rotated out of view and then back into view. Below is a plot of the HARP's minimum and maximum latitudes, i.e., the latitudes of the bottom and top of the bounding box. Given its latitudes, one could work out whether it's plausible that the HARP disappeared and then reappeared, but we do not do that here.
+The pattern in the non-missing longitudes for HARP 2116 suggests that the HARP rotated out of view and then back into view. Below is a plot of the HARP's minimum and maximum latitudes, i.e., the latitudes of its bottom and top. Given its latitudes, one could work out whether it's plausible that the HARP disappeared and then reappeared, but we do not do that here.
 ```{r}
 #| label: harp_2116_lat_plot
 
