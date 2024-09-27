@@ -3,6 +3,7 @@
 conda activate ../env/
 # It seems like the step size could be kept constant at two weeks, which would make it unnecessary
 # to run download_raw_data.py multiple times. That would result in more requests though
+
 python download_raw_data.py hmi.sharp_cea_720s 20100501 20110430 MS ../notebooks/keywords.txt 0
 python download_raw_data.py hmi.sharp_cea_720s 20110501 20110531 16D ../notebooks/keywords.txt 0
 python download_raw_data.py hmi.sharp_cea_720s 20110601 20110731 MS ../notebooks/keywords.txt 0
@@ -26,5 +27,7 @@ python download_raw_data.py hmi.sharp_cea_720s 20230315 20230331 17D ../notebook
 python download_raw_data.py hmi.sharp_cea_720s 20230401 20230531 16D ../notebooks/keywords.txt 0
 python download_raw_data.py hmi.sharp_cea_720s 20230601 20230630 15D ../notebooks/keywords.txt 0
 python download_raw_data.py hmi.sharp_cea_720s 20230701 20230731 16D ../notebooks/keywords.txt 0
-python download_raw_data.py hmi.sharp_cea_720s 20230801 20240821 MS ../notebooks/keywords.txt 0
+python download_raw_data.py hmi.sharp_cea_720s 20230801 20230930 16D ../notebooks/keywords.txt 0
+python download_raw_data.py hmi.sharp_cea_720s 20231001 20240821 15D ../notebooks/keywords.txt 0
+
 conda deactivate
