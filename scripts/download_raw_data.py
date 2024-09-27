@@ -33,15 +33,15 @@ if __name__ == "__main__":
   parser.add_argument("first_start_dt", type=str, help="String in yyyymmdd format; first date data is needed for")
   parser.add_argument("last_end_dt", type=str, help="String in yyyymmdd format; last date data is needed for")
   # JSOC staff recommended downloading data in one-month chunks, though it seems that for some months data
-  # should be downloaded in smaller chunks. The step size can be determined using the lookdata tool at
-  # http://jsoc.stanford.edu/ajax/lookdata.html. On each step, no more than 30,000 records should be downloaded,
-  # which seems to be the largest number of records that can be downloaded at once according to
+  # should be downloaded in smaller chunks. On each step, no more than 30,000 records should be downloaded, which
+  # seems to be the largest number of records that can be downloaded at once according to
   # http://jsoc.stanford.edu/ajax/exportdata.html. However, 202206 and 202209 have slightly fewer than 30,000
-  # records, but still need to be downloaded in more than one chunk it seems.
+  # records, but still need to be downloaded in more than one chunk it seems. The record count for a query can be
+  # determined using the RecordSet Select tab of the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html.
   parser.add_argument("step_size", type=str, help="String in Pandas period alias format; size of the step to take through the date range")
   parser.add_argument("keywords_file", type=str, help="String; file with the keywords to download data on")
   # JSOC staff suggested submitting requests serially to avoid overloading the server; they also said that it
-  # wouldn't be necessary to sleep between requests made in a serial fashion.
+  # wouldn't be necessary to sleep between requests made in a serial fashion, so sleep_time can be zero.
   parser.add_argument("sleep_time", type=int, help="Integer; nonnegative number of seconds to sleep between JSOC requests")
 
   cmd_args = parser.parse_args()
