@@ -27,11 +27,10 @@ def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: date
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Download HARP data from JSOC")
   parser.add_argument("series", type=str, help="String; a SHARP parameter series")
-  # Per https://doi.org/10.1007/s11207-014-0529-3, the earliest date with data is 5/1/10.
+  # Use the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html to determine the earliest and most recent
+  # dates with data. Once a series has been selected, the user will be taken to the RecordSet Select tab; the
+  # earliest and most recent dates can be determined from the First Record and Last Record fields on that tab.
   parser.add_argument("first_start_dt", type=str, help="String in yyyymmdd format; first date data is needed for")
-  # Use the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html to determine the most recent date
-  # with data. Once a series has been selected, the user will be taken to the RecordSet Select tab; the
-  # most recent date can be determined from the Last Record field on that tab.
   parser.add_argument("last_end_dt", type=str, help="String in yyyymmdd format; last date data is needed for")
   # JSOC staff recommended downloading data in one-month chunks, though it seems that for some months data
   # should be downloaded in smaller chunks. The step size can be determined using the lookdata tool at
