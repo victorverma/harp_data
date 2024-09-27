@@ -22,7 +22,7 @@ def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: date
   data = cli.query(ds, key=key, pkeys=True)
   start_dt = start_dttm.strftime("%Y%m%d")
   end_dt = end_dttm.strftime("%Y%m%d")
-  data.to_csv(os.path.join(series_dir, f"{start_dt}-{end_dt}.csv"), index=False)
+  data.to_parquet(os.path.join(series_dir, f"{start_dt}-{end_dt}.parquet"))
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Download HARP data from JSOC")
