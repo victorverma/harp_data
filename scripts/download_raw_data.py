@@ -38,7 +38,7 @@ parser.add_argument("last_end_dt", type=str, help="String in yyyymmdd format; la
 # records, but still need to be downloaded in more than one chunk it seems. The record count for a query can be
 # determined using the RecordSet Select tab of the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html.
 parser.add_argument("step_size", type=str, help="String in Pandas period alias format; size of the step to take through the date range")
-parser.add_argument("keywords_file", type=str, help="String; file with the keywords to download data on")
+parser.add_argument("keywords_file", type=str, help="String; file with the keywords to download data on, with one keyword per line")
 
 cmd_args = parser.parse_args()
 
