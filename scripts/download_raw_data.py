@@ -39,9 +39,6 @@ parser.add_argument("last_end_dt", type=str, help="String in yyyymmdd format; la
 # determined using the RecordSet Select tab of the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html.
 parser.add_argument("step_size", type=str, help="String in Pandas period alias format; size of the step to take through the date range")
 parser.add_argument("keywords_file", type=str, help="String; file with the keywords to download data on")
-# JSOC staff suggested submitting requests serially to avoid overloading the server; they also said that it
-# wouldn't be necessary to sleep between requests made in a serial fashion, so sleep_time can be zero.
-parser.add_argument("sleep_time", type=int, help="Integer; nonnegative number of seconds to sleep between JSOC requests")
 
 cmd_args = parser.parse_args()
 
@@ -67,8 +64,8 @@ if last_end_dttm not in end_dttms:
 with open(cmd_args.keywords_file, "r") as file:
   keywords = [line.strip() for line in file if line.strip()]
 
+# JSOC staff suggested submitting requests serially to avoid overloading the server; they also said that it
+# wouldn't be necessary to sleep between requests made in a serial fashion
 for i, (start_dttm, end_dttm) in enumerate(zip(start_dttms, end_dttms)):
   download_data(cli, cmd_args.series, start_dttm, end_dttm, keywords, series_dir)
   print(f"Downloaded data for {start_dttm}-{end_dttm}")
-  if i < len(start_dttms) - 1:
-    time.sleep(cmd_args.sleep_time)
