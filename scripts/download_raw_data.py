@@ -5,9 +5,8 @@ import pandas as pd
 import time
 from datetime import datetime, timedelta
 from drms import Client
-from typing import List
 
-def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: datetime, keywords: List[str], series_dir: str) -> None:
+def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: datetime, keywords: list[str], series_dir: str) -> None:
   """
   Download data on specified keywords for a given series over a given window of time.
 
