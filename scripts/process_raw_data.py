@@ -40,7 +40,13 @@ data[time_cols] = data[time_cols].apply(
 elapsed_time = time.time() - start_time
 print(f"\rTurning datetime strings into datetimes ({int(elapsed_time)}s)", flush=True)
 
-def insert_missing_rows(group):
+def insert_missing_rows(group: pd.DataFrame) -> pd.DataFrame:
+    """
+    Insert rows in the Pandas DataFrame for a specified HARP for times that should have rows but do not.
+
+    :param group: Pandas DataFrame containing the data for the HARP.
+    :return: Pandas DataFrame with the missing rows added.
+    """
     full_time_range = pd.date_range(start=group["T_REC"].min(), end=group["T_REC"].max(), freq="12min")
     group = group.set_index("T_REC").reindex(full_time_range, fill_value=pd.NA).reset_index(names="T_REC")
     group.insert(1, "T_REC", group.pop("T_REC"))
