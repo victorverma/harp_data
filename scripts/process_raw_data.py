@@ -40,6 +40,8 @@ data[time_cols] = data[time_cols].apply(
 elapsed_time = time.time() - start_time
 print(f"\rTurning datetime strings into datetimes ({int(elapsed_time)}s)", flush=True)
 
+# In a tiny number of records, some variables have infinite values. For example, for HARP 3672, at 2014-01-21 12:48:00, ABSNJZH is infinite.
+# These infinities are probably invalid values, so we replace them with NaNs.
 print("Replacing infinities with NaNs", end="", flush=True)
 start_time = time.time()
 number_cols = data.select_dtypes(include=["number"]).columns
