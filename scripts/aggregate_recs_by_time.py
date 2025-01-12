@@ -21,7 +21,7 @@ cols = [
     "USFLUX", "MEANGAM", "MEANGBT", "MEANGBZ", "MEANGBH", "MEANJZD", "TOTUSJZ", "MEANALP",
     "MEANJZH", "TOTUSJH", "ABSNJZH", "SAVNCPP", "MEANPOT", "TOTPOT", "MEANSHR", "SHRGT45",
     # Patch areas and pixel counts
-    "NPIX", "SIZE", "AREA", "NACR", "SIZE_ACR", "AREA_ACR",
+    "NPIX", "SIZE", "AREA", "NACR", "SIZE_ACR", "AREA_ACR"
 ]
 
 data = pd.read_parquet(f"../data/processed/{series_no_dot}.parquet")
