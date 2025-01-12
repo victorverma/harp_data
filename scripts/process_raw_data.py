@@ -5,8 +5,8 @@ import pandas as pd
 import time
 from drms import Client
 
-parser = argparse.ArgumentParser(description="Process HARP data downloaded from JSOC")
-parser.add_argument("--series", type=str, required=True, help="A data series for which data has been downloaded, e.g., hmi.sharp_cea_720s")
+parser = argparse.ArgumentParser(description="Process raw HARP data downloaded from JSOC")
+parser.add_argument("--series", type=str, required=True, help="A data series for which raw data has been downloaded, e.g., hmi.sharp_cea_720s")
 cmd_args = parser.parse_args()
 series = cmd_args.series
 series_no_dot = series.replace(".", "_", 1)
