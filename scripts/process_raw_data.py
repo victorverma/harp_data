@@ -40,6 +40,13 @@ data[time_cols] = data[time_cols].apply(
 elapsed_time = time.time() - start_time
 print(f"\rTurning datetime strings into datetimes ({int(elapsed_time)}s)", flush=True)
 
+print("Replacing infinities with NaNs", end="", flush=True)
+start_time = time.time()
+number_cols = data.select_dtypes(include=["number"]).columns
+data[number_cols] = data[number_cols].replace([np.inf, -np.inf], np.nan)
+elapsed_time = time.time() - start_time
+print(f"\rReplacing infinities with NaNs ({int(elapsed_time)}s)", flush=True)
+
 def insert_missing_rows(group: pd.DataFrame) -> pd.DataFrame:
     """
     Insert rows in the Pandas DataFrame for a specified HARP for times that should have rows but do not.
