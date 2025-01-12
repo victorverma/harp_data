@@ -11,14 +11,14 @@ cmd_args = parser.parse_args()
 series = cmd_args.series
 series_no_dot = series.replace(".", "_", 1)
 
-print("Loading the raw data", end="", flush=True)
+print("Compiling the raw data", end="", flush=True)
 start_time = time.time()
 raw_dir = f"../data/raw/{series_no_dot}"
 files = [os.path.join(raw_dir, file) for file in os.listdir(raw_dir) if file.endswith(".parquet")]
 files.sort()
 data = pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
 elapsed_time = time.time() - start_time
-print(f"\rLoading the raw data ({int(elapsed_time)}s)", flush=True)
+print(f"\rCompiling the raw data ({int(elapsed_time)}s)", flush=True)
 
 print("Turning datetime strings into datetimes", end="", flush=True)
 start_time = time.time()
@@ -53,7 +53,7 @@ def insert_missing_rows(group: pd.DataFrame) -> pd.DataFrame:
     group["HARPNUM"] = group["HARPNUM"].ffill().bfill()
     return group
 
-print("Making one big DataFrame", end="", flush=True)
+print("Inserting missing rows", end="", flush=True)
 start_time = time.time()
 orig_dtypes = data.dtypes
 orig_dtypes.where(orig_dtypes != np.dtype("int64"), pd.Int64Dtype(), inplace=True) # int64 doesn't support NA, but Int64 does
@@ -62,7 +62,7 @@ data.reset_index(drop=True, inplace=True)
 data = data.astype(orig_dtypes)
 data.sort_values(by=["HARPNUM", "T_REC"], inplace=True)
 elapsed_time = time.time() - start_time
-print(f"\rMaking one big DataFrame ({int(elapsed_time)}s)", flush=True)
+print(f"\rInserting missing rows ({int(elapsed_time)}s)", flush=True)
 
 print("Saving the DataFrame", end="", flush=True)
 start_time = time.time()
