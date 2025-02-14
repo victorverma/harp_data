@@ -6,23 +6,6 @@ import time
 from datetime import datetime, timedelta
 from drms import Client
 
-def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: datetime, keywords: list[str], series_dir: str) -> None:
-    """
-    Download data on specified keywords for a given series over a given window of time.
-
-    :param series: String that is the name of the series.
-    :param start_dttm: Datetime that is the beginning of the time window.
-    :param end_dttm: Datetime that is the end of the time window.
-    :param keywords: List of strings giving the keywords.
-    :param series_dir: String that is the path to the directory where the data should be saved.
-    """
-    ds = f"{series}[][{start_dttm.strftime('%Y.%m.%d_%H:%M:%S')}_TAI-{end_dttm.strftime('%Y.%m.%d_%H:%M:%S')}_TAI]"
-    key = ", ".join(keywords)
-    data = cli.query(ds, key=key, pkeys=True)
-    start_dt = start_dttm.strftime("%Y%m%d")
-    end_dt = end_dttm.strftime("%Y%m%d")
-    data.to_parquet(os.path.join(series_dir, f"{start_dt}-{end_dt}.parquet"))
-
 parser = argparse.ArgumentParser(description="Download HARP data from JSOC")
 parser.add_argument("series", type=str, help="String; a SHARP parameter series")
 # Use the lookdata tool at http://jsoc.stanford.edu/ajax/lookdata.html to determine the earliest and most recent
@@ -62,6 +45,23 @@ if last_end_dttm not in end_dttms:
 
 with open(cmd_args.keywords_file, "r") as file:
     keywords = [line.strip() for line in file if line.strip()]
+
+def download_data(cli: Client, series: str, start_dttm: datetime, end_dttm: datetime, keywords: list[str], series_dir: str) -> None:
+    """
+    Download data on specified keywords for a given series over a given window of time.
+
+    :param series: String that is the name of the series.
+    :param start_dttm: Datetime that is the beginning of the time window.
+    :param end_dttm: Datetime that is the end of the time window.
+    :param keywords: List of strings giving the keywords.
+    :param series_dir: String that is the path to the directory where the data should be saved.
+    """
+    ds = f"{series}[][{start_dttm.strftime('%Y.%m.%d_%H:%M:%S')}_TAI-{end_dttm.strftime('%Y.%m.%d_%H:%M:%S')}_TAI]"
+    key = ", ".join(keywords)
+    data = cli.query(ds, key=key, pkeys=True)
+    start_dt = start_dttm.strftime("%Y%m%d")
+    end_dt = end_dttm.strftime("%Y%m%d")
+    data.to_parquet(os.path.join(series_dir, f"{start_dt}-{end_dt}.parquet"))
 
 # JSOC staff suggested submitting requests serially to avoid overloading the server; they also said that it
 # wouldn't be necessary to sleep between requests made in a serial fashion
