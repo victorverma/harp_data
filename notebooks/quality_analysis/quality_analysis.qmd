@@ -396,19 +396,23 @@ harp_tbl <- one_harp_tbls %>% select(!impute_plot) %>% unnest(one_harp_tbl)
 There is an issue if either the minimum longitude is too small or the maximum longitude is too big. Hence, there is an issue if the absolute value of one of these is too big. We compute the two absolute values and then take the larger of the two.
 ```{r}
 harp_tbl <- mutate(harp_tbl, max_abs_lon = pmax(abs(LON_MIN), abs(LON_MAX)))
-max_abs_lon_range <- range(harp_tbl$max_abs_lon)
 ```
 
 We follow the approach taken in @sec-harp-age. We bin the maximum absolute longitudes across all HARPs, and for each bin, we compute the proportions of the corresponding records with the various problems.
 ```{r}
 #| message: false
 
+max_abs_lon_range <- harp_tbl %>%
+  filter(max_abs_lon <= 90) %>%
+  pull(max_abs_lon) %>%
+  range()
 breaks <- seq(
   floor(max_abs_lon_range[1]), ceiling(max_abs_lon_range[2]), length.out = 20
 )
 midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
 breaks[length(breaks)] <- Inf
 prop_tbl <- harp_tbl %>%
+  filter(max_abs_lon <= 90) %>%
   mutate(
     max_abs_lon = cut(max_abs_lon, breaks = breaks, right = FALSE),
     midpoint = midpoints[as.integer(max_abs_lon)]
@@ -417,16 +421,33 @@ prop_tbl <- harp_tbl %>%
   summarize(
     missing_rec_prop = mean(is_rec_missing),
     incomplete_rec_prop = mean(is_rec_incomplete),
-    low_quality_prop = mean(is_quality_low, na.rm = TRUE)
+    low_quality_prop = mean(is_quality_low, na.rm = TRUE),
+    num_recs = n(),
+    se_upper_bound = 1 / (2 * sqrt(num_recs))
   ) %>%
   ungroup()
 ```
+
+Below are the counts of records and upper bounds on the standard errors for the proportions for the various bins.
+```{r}
+prop_tbl %>%
+  select(max_abs_lon, num_recs, se_upper_bound) %>%
+  kable(
+    "html",
+    digits = 3,
+    # col.names = c("Maximum Absolute Longitude Bin", "Number of Records", "SE Upper Bound"),
+    # align = "crr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
 
 Longitude has a strong effect on incompleteness; the incompleteness proportion is near zero until 90°, where it skyrockets. The effect of longitude on missingness isn't as strong, but it's still substantial. The missingness proportion decreases from above 0.1 until 90°, where it surges. Finally, longitude has no effect on the low quality proportion; it hovers around 0.05-0.1 throughout the range of the maximum absolute longitude.
 ```{r}
 prop_tbl %>%
   pivot_longer(
-    cols = !c(max_abs_lon, midpoint),
+    cols = !c(max_abs_lon, midpoint, num_recs, se_upper_bound),
     names_to = "prop_type", names_pattern = "([a-z_]+)_prop",
     values_to = "prop_val"
   ) %>%
@@ -451,6 +472,340 @@ prop_tbl %>%
     legend.position.inside = c(0.15, 0.82),
     legend.background = element_rect(fill = NA)
   )
+```
+
+Repeat for `LON_MIN`.
+```{r}
+#| message: false
+
+lon_min_range <- harp_tbl %>%
+  filter(between(LON_MIN, -90, 90)) %>%
+  pull(LON_MIN) %>%
+  range()
+breaks <- seq(
+  floor(lon_min_range[1]), ceiling(lon_min_range[2]), length.out = 20
+)
+midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
+breaks[length(breaks)] <- Inf
+prop_tbl <- harp_tbl %>%
+  filter(between(LON_MIN, -90, 90)) %>%
+  mutate(
+    LON_MIN = cut(LON_MIN, breaks = breaks, right = FALSE),
+    midpoint = midpoints[as.integer(LON_MIN)]
+  ) %>%
+  group_by(LON_MIN, midpoint) %>%
+  summarize(
+    missing_rec_prop = mean(is_rec_missing),
+    incomplete_rec_prop = mean(is_rec_incomplete),
+    low_quality_prop = mean(is_quality_low, na.rm = TRUE),
+    num_recs = n(),
+    se_upper_bound = 1 / (2 * sqrt(num_recs))
+  ) %>%
+  ungroup()
+```
+
+Below are the counts of records and upper bounds on the standard errors for the proportions for the various bins.
+```{r}
+prop_tbl %>%
+  select(LON_MIN, num_recs, se_upper_bound) %>%
+  kable(
+    "html",
+    digits = 3,
+    # col.names = c("Minimum Longitude Bin", "Number of Records", "SE Upper Bound"),
+    # align = "crr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+```{r}
+prop_tbl %>%
+  pivot_longer(
+    cols = !c(LON_MIN, midpoint, num_recs, se_upper_bound),
+    names_to = "prop_type", names_pattern = "([a-z_]+)_prop",
+    values_to = "prop_val"
+  ) %>%
+  ggplot(aes(midpoint, prop_val, linetype = prop_type)) +
+  geom_line() +
+  scale_linetype_manual(
+    labels = c(
+      missing_rec = "Missing Record",
+      incomplete_rec = "Incomplete Record",
+      low_quality = "Low-Quality Record"
+    ),
+    values = c("solid", "dashed", "dotted")
+  ) +
+  labs(
+    x = expression("Minimum Longitude (" * degree * ")"),
+    y = "Proportion Value",
+    linetype = "Proportion Type"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.15, 0.82),
+    legend.background = element_rect(fill = NA)
+  )
+```
+
+Repeat for `LON_MAX`.
+```{r}
+#| message: false
+
+lon_max_range <- harp_tbl %>%
+  filter(between(LON_MAX, -90, 90)) %>%
+  pull(LON_MAX) %>%
+  range()
+breaks <- seq(
+  floor(lon_max_range[1]), ceiling(lon_max_range[2]), length.out = 20
+)
+midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
+breaks[length(breaks)] <- Inf
+prop_tbl <- harp_tbl %>%
+  filter(between(LON_MAX, -90, 90)) %>%
+  mutate(
+    LON_MAX = cut(LON_MAX, breaks = breaks, right = FALSE),
+    midpoint = midpoints[as.integer(LON_MAX)]
+  ) %>%
+  group_by(LON_MAX, midpoint) %>%
+  summarize(
+    missing_rec_prop = mean(is_rec_missing),
+    incomplete_rec_prop = mean(is_rec_incomplete),
+    low_quality_prop = mean(is_quality_low, na.rm = TRUE),
+    num_recs = n(),
+    se_upper_bound = 1 / (2 * sqrt(num_recs))
+  ) %>%
+  ungroup()
+```
+
+Below are the counts of records and upper bounds on the standard errors for the proportions for the various bins.
+```{r}
+prop_tbl %>%
+  select(LON_MAX, num_recs, se_upper_bound) %>%
+  kable(
+    "html",
+    digits = 3,
+    # col.names = c("Maximum Longitude Bin", "Number of Records", "SE Upper Bound"),
+    # align = "crr",
+    format.args = list(big.mark = ",")
+  ) %>%
+  kable_styling()
+```
+
+```{r}
+prop_tbl %>%
+  pivot_longer(
+    cols = !c(LON_MAX, midpoint, num_recs, se_upper_bound),
+    names_to = "prop_type", names_pattern = "([a-z_]+)_prop",
+    values_to = "prop_val"
+  ) %>%
+  ggplot(aes(midpoint, prop_val, linetype = prop_type)) +
+  geom_line() +
+  scale_linetype_manual(
+    labels = c(
+      missing_rec = "Missing Record",
+      incomplete_rec = "Incomplete Record",
+      low_quality = "Low-Quality Record"
+    ),
+    values = c("solid", "dashed", "dotted")
+  ) +
+  labs(
+    x = expression("Maximum Longitude (" * degree * ")"),
+    y = "Proportion Value",
+    linetype = "Proportion Type"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.15, 0.82),
+    legend.background = element_rect(fill = NA)
+  )
+```
+
+# Imputing SHARP Parameters
+
+```{r}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+```{r}
+make_sharp_params_plot <- function(one_harp_tbl, harp_num) {
+  start_time <- end_time <- NULL
+  with(
+    one_harp_tbl,
+    {
+      start_time <<- format(first(T_REC), "%Y-%m-%d %H:%M:%S")
+      end_time <<- format(last(T_REC), "%Y-%m-%d %H:%M:%S")
+    }
+  )
+  one_harp_tbl %>%
+    select(T_REC, all_of(sharp_params)) %>%
+    pivot_longer(
+      cols = !T_REC, names_to = "sharp_param", values_to = "val"
+    ) %>%
+    ggplot(aes(T_REC, val)) +
+    facet_wrap(vars(sharp_param), nrow = 4, ncol = 4, scales = "free_y") +
+    geom_line() +
+    labs(
+      x = "Time", y = "Value",
+      title = str_glue("HARP {harp_num}"),
+      subtitle = str_glue("Duration: {start_time} to {end_time}")
+    ) +
+    theme_bw() +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+}
+```
+
+```{r}
+one_harp_tbls <- harp_tbl %>%
+  nest(.by = HARPNUM, .key = "one_harp_tbl") %>%
+  mutate(
+    sharp_params_plot = map2(one_harp_tbl, HARPNUM, make_sharp_params_plot)
+  )
+```
+
+```{r}
+#| eval: false
+
+pdf(
+  here("notebooks/quality_analysis/sharp_params_plots.pdf"),
+  width = 12, height = 6
+)
+with(one_harp_tbls, walk(sharp_params_plot, print))
+dev.off()
+```
+
+```{r}
+impute_sharp_params <- function(one_harp_tbl) {
+  tryCatch(
+    mutate(one_harp_tbl, across(all_of(sharp_params), na_interpolation)),
+    error = function(e) NULL
+  )
+}
+```
+
+```{r}
+one_harp_tbls <- mutate(
+  one_harp_tbls,
+  one_harp_tbl = map(one_harp_tbl, impute_sharp_params),
+  has_inf = map_lgl(one_harp_tbl, ~ any(.x$has_inf))
+)
+```
+
+```{r}
+bad_harp_nums <- one_harp_tbls %>%
+  filter(map_lgl(one_harp_tbl, is.null)) %>%
+  pull(HARPNUM)
+harp_tbl %>%
+  filter(HARPNUM %in% bad_harp_nums) %>%
+  select(HARPNUM, all_of(sharp_params)) %>%
+  unique()
+```
+
+```{r}
+harp_tbl2 <- one_harp_tbls %>%
+  filter(!map_lgl(one_harp_tbl, is.null), !has_inf) %>%
+  select(!c(sharp_params_plot, has_inf)) %>%
+  unnest(one_harp_tbl)
+```
+
+```{r}
+harp_tbl2 %>%
+  select(all_of(sharp_params)) %>%
+  mutate(is_rec_missing = vec_detect_missing(.)) %>%
+  pull(is_rec_missing) %>%
+  any()
+```
+
+```{r}
+harp_tbl2 <- select(harp_tbl2, !(is_rec_incomplete:max_abs_lon))
+```
+
+Why $\pm 68^{\circ}$?
+```{r}
+harp_tbl2 <- filter(harp_tbl2, LON_MIN >= -68, LON_MAX <= 68)
+```
+
+```{r}
+time_tbl <- harp_tbl2 %>%
+  distinct(T_REC) %>%
+  arrange(T_REC) %>%
+  add_column(is_in_harp_lifetime = TRUE) %>%
+  complete(T_REC = full_seq(T_REC, period = 720)) %>%
+  mutate(is_in_harp_lifetime = coalesce(is_in_harp_lifetime, FALSE))
+```
+
+```{r}
+time_tbl %>%
+  count(is_in_harp_lifetime, sort = TRUE) %>%
+  mutate(prop = n / sum(n))
+```
+
+```{r}
+#| message: false
+
+time_rle_obj <- rle(time_tbl$is_in_harp_lifetime)
+time_summary_tbl <- time_tbl %>%
+  add_column(
+    run_id = rep(seq_along(time_rle_obj$values), times = time_rle_obj$lengths)
+  ) %>%
+  group_by(run_id, is_in_harp_lifetime) %>%
+  summarize(
+    start_time = first(T_REC),
+    end_time = last(T_REC),
+    days_elapsed = difftime(max(T_REC), min(T_REC), units = "days"),
+    num_times = length(T_REC)
+  ) %>%
+  ungroup() %>%
+  select(!run_id)
+```
+
+```{r}
+time_summary_tbl %>%
+  mutate(days_elapsed = as.double(days_elapsed)) %>%
+  ggplot(aes(start_time, days_elapsed, color = is_in_harp_lifetime)) +
+  geom_point() +
+  scale_x_datetime(date_labels = "%F") +
+  scale_y_log10() +
+  scale_color_manual(
+    labels = c(
+      `TRUE` = "Every Time Is in a HARP Lifetime",
+      `FALSE` = "No Time Is in a HARP Lifetime"
+    ),
+    values = c(`TRUE` = "blue", `FALSE` = "orange")
+  ) +
+  labs(x = "Run Start Time", y = "Run Length (Days)", color = "") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+```{r}
+time_summary_tbl %>%
+  filter(is_in_harp_lifetime) %>%
+  select(!is_in_harp_lifetime) %>%
+  slice_max(days_elapsed, n = 5) %>%
+  mutate(days_elapsed = as.double(days_elapsed))
+```
+
+```{r}
+longest_run <- time_summary_tbl %>%
+  filter(is_in_harp_lifetime) %>%
+  slice_max(days_elapsed)
+harp_tbl2 <- filter(
+  harp_tbl2, between(T_REC, longest_run$start_time, longest_run$end_time)
+)
+```
+
+```{r}
+
+```
+
+
+```{r}
+write_parquet(harp_tbl2, here("data/processed/harp_data2.parquet"))
 ```
 
 # Investigations into the Problems
