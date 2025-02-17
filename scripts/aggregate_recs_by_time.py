@@ -24,7 +24,7 @@ cols = [
     "NPIX", "SIZE", "AREA", "NACR", "SIZE_ACR", "AREA_ACR"
 ]
 
-data = pd.read_parquet(f"../data/processed/{series_no_dot}.parquet")
+data = pd.read_parquet(f"processed/{series_no_dot}.parquet")
 
 def combine_col_vals(group: pd.DataFrame, col: str, weights: pd.Series) -> float:
     """
@@ -106,7 +106,7 @@ print("Saving the DataFrame", end="", flush=True)
 start_time = time.time()
 high_qual_suffix = "_high-qual" if not use_low_qual_recs else ""
 near_center_suffix = f"_near-center-{limb_threshold}" if not use_near_limb_recs else ""
-data.to_parquet(f"../data/processed/aggregated{high_qual_suffix}{near_center_suffix}.parquet")
+data.to_parquet(f"processed/aggregated{high_qual_suffix}{near_center_suffix}.parquet")
 elapsed_time = time.time() - start_time
 print(f"\rSaving the DataFrame ({int(elapsed_time)}s)", flush=True)
 print("Done")

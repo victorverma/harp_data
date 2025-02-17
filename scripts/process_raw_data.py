@@ -13,8 +13,7 @@ series_no_dot = series.replace(".", "_", 1)
 
 print("Compiling the raw data", end="", flush=True)
 start_time = time.time()
-raw_dir = f"../data/raw/{series_no_dot}"
-files = [os.path.join(raw_dir, file) for file in os.listdir(raw_dir) if file.endswith(".parquet")]
+files = [os.path.join("raw", file) for file in os.listdir("raw") if file.endswith(".parquet")]
 files.sort()
 data = pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
 elapsed_time = time.time() - start_time
@@ -75,7 +74,7 @@ print(f"\rInserting missing rows ({int(elapsed_time)}s)", flush=True)
 
 print("Saving the DataFrame", end="", flush=True)
 start_time = time.time()
-data.to_parquet(f"../data/processed/{series_no_dot}.parquet")
+data.to_parquet(f"processed/{series_no_dot}.parquet")
 elapsed_time = time.time() - start_time
 print(f"\rSaving the DataFrame ({int(elapsed_time)}s)", flush=True)
 print("Done")
