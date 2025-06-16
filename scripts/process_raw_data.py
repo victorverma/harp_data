@@ -122,8 +122,8 @@ start_time = time.time()
 if keep_low_qual_vals and keep_near_limb_recs:
     file_name = "all"
 else:
-    high_qual_str = "" if keep_low_qual_vals else "high-qual"
-    near_center_str = "" if keep_near_limb_recs else f"near-center-{limb_threshold}"
+    high_qual_str = "" if keep_low_qual_vals else "hq"
+    near_center_str = "" if keep_near_limb_recs else f"nc{limb_threshold}"
     file_name = "_".join(filter(None, [high_qual_str, near_center_str]))
 data.to_parquet(f"processed/{file_name}.parquet")
 elapsed_time = time.time() - start_time
