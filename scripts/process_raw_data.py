@@ -123,6 +123,8 @@ if keep_low_qual_vals and keep_near_limb_recs:
     file_name = "all"
 else:
     high_qual_str = "" if keep_low_qual_vals else "hq"
+    limb_threshold = int(limb_threshold) \
+        if limb_threshold.is_integer() else limb_threshold
     near_center_str = "" if keep_near_limb_recs else f"nc{limb_threshold}"
     file_name = "_".join(filter(None, [high_qual_str, near_center_str]))
 data.to_parquet(f"processed/{file_name}.parquet")
